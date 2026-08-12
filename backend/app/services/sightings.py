@@ -6,6 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.sighting import Sighting
 from app.schemas.sighting import SightingCreate, SightingRead
 
+# 3 casas decimais ≈ 100-110m de margem — suficiente pra proteger onde
+# exatamente a pessoa estava ao reportar (potencialmente perto de casa),
+# sem inutilizar o mapa pra quem quer saber "tem animal perto daqui".
+# A coordenada EXATA continua no banco, intacta — isso só afeta a resposta.
+PUBLIC_COORDINATE_PRECISION = 3
+
 
 async def create_sighting(db: AsyncSession, data: SightingCreate, reporter_id) -> Sighting:
     point = from_shape(Point(data.longitude, data.latitude), srid=4326)
@@ -32,7 +38,7 @@ def to_read_schema(sighting: Sighting) -> SightingRead:
         id=sighting.id,
         reporter_id=sighting.reporter_id,
         description=sighting.description,
-        latitude=point.y,
-        longitude=point.x,
+        latitude=round(point.y, PUBLIC_COORDINATE_PRECISION),
+        longitude=round(point.x, PUBLIC_COORDINATE_PRECISION),
         created_at=sighting.created_at,
     )
