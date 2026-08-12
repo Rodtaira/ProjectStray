@@ -1,5 +1,5 @@
-from geoalchemy2.shape import from_shape, to_shape
-from shapely.geometry import Point
+from geoalchemy2.shape import from_shape, to_shape # type: ignore
+from shapely.geometry import Point # type: ignore
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
