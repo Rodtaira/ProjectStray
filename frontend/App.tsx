@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { LoginScreen } from './LoginScreen';
+import { MapScreen } from './MapScreen';
 import { UserMe, getMe } from './lib/api';
 import { authenticatedFetch, onSessionExpired } from './lib/auth-client';
 import { clearTokens } from './lib/auth-storage';
@@ -50,19 +51,30 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.center}>
-      <Text style={styles.title}>Logado como {user.full_name ?? user.email}</Text>
-      <Text>{user.email}</Text>
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Sair</Text>
-      </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerText}>{user.full_name ?? user.email}</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <Text style={styles.logoutText}>Sair</Text>
+        </TouchableOpacity>
+      </View>
+      <MapScreen />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  title: { fontSize: 18, fontWeight: '600' },
-  logoutButton: { marginTop: 16, padding: 10 },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ddd',
+  },
+  headerText: { fontSize: 16, fontWeight: '600' },
   logoutText: { color: '#2563eb', fontWeight: '600' },
 });

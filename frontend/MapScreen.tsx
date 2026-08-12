@@ -1,0 +1,97 @@
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import MapView, { Marker, Region } from 'react-native-maps';
+import * as Location from 'expo-location';
+
+import { Sighting, listSightings } from './lib/api';
+import { authenticatedFetch } from './lib/auth-client';
+
+export function MapScreen() {
+  const [region, setRegion] = useState<Region | null>(null);
+  const [sightings, setSightings] = useState<Sighting[]>([]);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [loadingSightings, setLoadingSightings] = useState(true);
+
+  const loadSightings = useCallback(async () => {
+    try {
+      const data = await authenticatedFetch((token) => listSightings(token));
+      setSightings(data);
+    } catch {
+      // Tela continua funcional mesmo se isso falhar — só sem os marcadores.
+    } finally {
+      setLoadingSightings(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Permissão de localização negada. Ative nas configurações do app.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({});
+      setRegion({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
+    })();
+  }, []);
+
+  useEffect(() => {
+    loadSightings();
+  }, [loadSightings]);
+
+  if (locationError) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{locationError}</Text>
+      </View>
+    );
+  }
+
+  if (!region) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <MapView style={styles.map} initialRegion={region} showsUserLocation>
+        {sightings.map((sighting) => (
+          <Marker
+            key={sighting.id}
+            coordinate={{ latitude: sighting.latitude, longitude: sighting.longitude }}
+            title={sighting.description ?? 'Animal avistado'}
+          />
+        ))}
+      </MapView>
+      {loadingSightings && (
+        <View style={styles.loadingBadge}>
+          <ActivityIndicator size="small" />
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  map: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorText: { textAlign: 'center', color: '#666' },
+  loadingBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: '#fff',
+    padding: 8,
+    borderRadius: 20,
+    elevation: 3,
+  },
+});
