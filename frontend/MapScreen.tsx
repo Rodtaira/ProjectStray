@@ -4,15 +4,27 @@ import MapView, { Marker, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 
 import { CreateSightingModal } from './CreateSightingModal';
-import { Sighting, createSighting, listSightings } from './lib/api';
+import { SightingDetailModal } from './SightingDetailModal';
+import {
+  Sighting,
+  SightingUpdate,
+  createSighting,
+  listSightings,
+  updateSighting,
+} from './lib/api';
 import { authenticatedFetch } from './lib/auth-client';
 
-export function MapScreen() {
+type Props = {
+  currentUserId: string;
+};
+
+export function MapScreen({ currentUserId }: Props) {
   const [region, setRegion] = useState<Region | null>(null);
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [loadingSightings, setLoadingSightings] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [selectedSighting, setSelectedSighting] = useState<Sighting | null>(null);
 
   const loadSightings = useCallback(async () => {
     try {
@@ -59,6 +71,12 @@ export function MapScreen() {
     setModalVisible(false);
   }
 
+  async function handleUpdateSighting(id: string, changes: SightingUpdate) {
+    const updated = await authenticatedFetch((token) => updateSighting(token, id, changes));
+    setSightings((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    setSelectedSighting(updated);
+  }
+
   if (locationError) {
     return (
       <View style={styles.center}>
@@ -83,6 +101,8 @@ export function MapScreen() {
             key={sighting.id}
             coordinate={{ latitude: sighting.latitude, longitude: sighting.longitude }}
             title={sighting.description ?? 'Animal avistado'}
+            pinColor={sighting.status === 'resolved' ? 'green' : 'red'}
+            onPress={() => setSelectedSighting(sighting)}
           />
         ))}
       </MapView>
@@ -102,6 +122,15 @@ export function MapScreen() {
         onCancel={() => setModalVisible(false)}
         onSubmit={handleCreateSighting}
       />
+
+      {selectedSighting && (
+        <SightingDetailModal
+          sighting={selectedSighting}
+          currentUserId={currentUserId}
+          onClose={() => setSelectedSighting(null)}
+          onUpdate={handleUpdateSighting}
+        />
+      )}
     </View>
   );
 }

@@ -58,7 +58,7 @@ export default function App() {
           <Text style={styles.logoutText}>Sair</Text>
         </TouchableOpacity>
       </View>
-      <MapScreen />
+      <MapScreen currentUserId={user.id} />
     </SafeAreaView>
   );
 }

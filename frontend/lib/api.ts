@@ -15,10 +15,13 @@ export type UserMe = {
   created_at: string;
 };
 
+export type SightingStatus = 'open' | 'resolved';
+
 export type Sighting = {
   id: string;
   reporter_id: string;
   description: string | null;
+  status: SightingStatus;
   latitude: number;
   longitude: number;
   created_at: string;
@@ -28,6 +31,11 @@ export type SightingCreate = {
   description?: string | null;
   latitude: number;
   longitude: number;
+};
+
+export type SightingUpdate = {
+  description?: string;
+  status?: SightingStatus;
 };
 
 export class ApiError extends Error {
@@ -84,6 +92,18 @@ export function listSightings(accessToken: string): Promise<Sighting[]> {
 export function createSighting(accessToken: string, data: SightingCreate): Promise<Sighting> {
   return request('/api/v1/sightings', {
     method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateSighting(
+  accessToken: string,
+  id: string,
+  data: SightingUpdate
+): Promise<Sighting> {
+  return request(`/api/v1/sightings/${id}`, {
+    method: 'PATCH',
     headers: { Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(data),
   });
