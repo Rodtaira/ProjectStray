@@ -38,6 +38,37 @@ export type SightingUpdate = {
   status?: SightingStatus;
 };
 
+export type AnimalSpecies = 'dog' | 'cat';
+export type AnimalSex = 'male' | 'female' | 'unknown';
+export type AnimalStatus = 'stray' | 'adopted' | 'in_shelter' | 'deceased';
+
+export type Animal = {
+  id: string;
+  registered_by: string;
+  species: AnimalSpecies;
+  sex: AnimalSex;
+  name: string | null;
+  description: string | null;
+  is_sterilized: boolean;
+  status: AnimalStatus;
+  created_at: string;
+};
+
+export type AnimalCreate = {
+  species: AnimalSpecies;
+  sex?: AnimalSex;
+  name?: string | null;
+  description?: string | null;
+};
+
+export type AnimalUpdate = {
+  name?: string;
+  description?: string;
+  sex?: AnimalSex;
+  is_sterilized?: boolean;
+  status?: AnimalStatus;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -58,6 +89,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body.detail ?? `Erro ${res.status}`);
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
   }
 
   return res.json();
@@ -106,5 +141,38 @@ export function updateSighting(
     method: 'PATCH',
     headers: { Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(data),
+  });
+}
+
+export function listAnimals(accessToken: string): Promise<Animal[]> {
+  return request('/api/v1/animals', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function createAnimal(accessToken: string, data: AnimalCreate): Promise<Animal> {
+  return request('/api/v1/animals', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateAnimal(
+  accessToken: string,
+  id: string,
+  data: AnimalUpdate
+): Promise<Animal> {
+  return request(`/api/v1/animals/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteAnimal(accessToken: string, id: string): Promise<void> {
+  return request(`/api/v1/animals/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

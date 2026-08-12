@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AnimalsScreen } from './AnimalsScreen';
 import { LoginScreen } from './LoginScreen';
 import { MapScreen } from './MapScreen';
 import { UserMe, getMe } from './lib/api';
 import { authenticatedFetch, onSessionExpired } from './lib/auth-client';
 import { clearTokens } from './lib/auth-storage';
+
+const Tab = createBottomTabNavigator();
 
 export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
@@ -51,15 +57,22 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>{user.full_name ?? user.email}</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Sair</Text>
-        </TouchableOpacity>
-      </View>
-      <MapScreen currentUserId={user.id} />
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.headerText}>{user.full_name ?? user.email}</Text>
+            <TouchableOpacity onPress={handleLogout}>
+              <Text style={styles.logoutText}>Sair</Text>
+            </TouchableOpacity>
+          </View>
+          <Tab.Navigator screenOptions={{ headerShown: false }}>
+            <Tab.Screen name="Mapa">{() => <MapScreen currentUserId={user.id} />}</Tab.Screen>
+            <Tab.Screen name="Animais">{() => <AnimalsScreen currentUserId={user.id} />}</Tab.Screen>
+          </Tab.Navigator>
+        </SafeAreaView>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 

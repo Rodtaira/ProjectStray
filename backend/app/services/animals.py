@@ -55,6 +55,13 @@ async def update_animal(db: AsyncSession, animal: Animal, data: AnimalUpdate) ->
     return animal
 
 
+async def delete_animal(db: AsyncSession, animal: Animal) -> None:
+    """Exclusão de verdade — só pra corrigir cadastro feito por engano.
+    Mudança de ciclo de vida (adotado, falecido) deve usar status, não isso."""
+    await db.delete(animal)
+    await db.commit()
+
+
 def to_read_schema(animal: Animal) -> AnimalRead:
     return AnimalRead(
         id=animal.id,
