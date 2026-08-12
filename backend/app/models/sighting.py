@@ -1,12 +1,18 @@
+import enum
 import uuid
 
 from geoalchemy2 import Geography
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+
+class SightingStatus(str, enum.Enum):
+    open = "open"
+    resolved = "resolved"
 
 
 class Sighting(Base):
@@ -24,6 +30,12 @@ class Sighting(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     description: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[SightingStatus] = mapped_column(
+        Enum(SightingStatus, name="sighting_status"),
+        nullable=False,
+        default=SightingStatus.open,
+        server_default=SightingStatus.open.value,
+    )
 
     location = mapped_column(
         Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=False
