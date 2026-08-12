@@ -15,6 +15,15 @@ export type UserMe = {
   created_at: string;
 };
 
+export type Sighting = {
+  id: string;
+  reporter_id: string;
+  description: string | null;
+  latitude: number;
+  longitude: number;
+  created_at: string;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -56,6 +65,12 @@ export function refreshTokens(refreshToken: string): Promise<AuthTokens> {
 
 export function getMe(accessToken: string): Promise<UserMe> {
   return request('/api/v1/users/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function listSightings(accessToken: string): Promise<Sighting[]> {
+  return request('/api/v1/sightings', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
