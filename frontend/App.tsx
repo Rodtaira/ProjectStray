@@ -1,51 +1,68 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
-type HealthStatus = {
-  database: string;
-  postgis: string;
-  pgvector: string;
-  redis: string;
-};
+import { LoginScreen } from './LoginScreen';
+import { UserMe, getMe } from './lib/api';
+import { authenticatedFetch, onSessionExpired } from './lib/auth-client';
+import { clearTokens } from './lib/auth-storage';
 
 export default function App() {
-  const [status, setStatus] = useState<HealthStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [user, setUser] = useState<UserMe | null>(null);
 
-  useEffect(() => {
-    fetch(`${API_URL}/health`)
-      .then((res) => res.json())
-      .then(setStatus)
-      .catch((err) => setError(String(err)));
+  const loadUser = useCallback(async () => {
+    try {
+      const u = await authenticatedFetch((token) => getMe(token));
+      setUser(u);
+    } catch {
+      setUser(null);
+    } finally {
+      setCheckingSession(false);
+    }
   }, []);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Conexão com o backend</Text>
-      <Text style={styles.url}>{API_URL}</Text>
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
 
-      {error && <Text style={styles.error}>Erro: {error}</Text>}
-      {!status && !error && <ActivityIndicator />}
-      {status && (
-        <View style={styles.statusBox}>
-          {Object.entries(status).map(([key, value]) => (
-            <Text key={key} style={styles.statusLine}>
-              {key}: {String(value)}
-            </Text>
-          ))}
-        </View>
-      )}
+  useEffect(() => {
+    return onSessionExpired(() => {
+      setUser(null);
+      setCheckingSession(false);
+    });
+  }, []);
+
+  async function handleLogout() {
+    await clearTokens();
+    setUser(null);
+  }
+
+  if (checkingSession) {
+    return (
+      <SafeAreaView style={styles.center}>
+        <ActivityIndicator />
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen onLoginSuccess={loadUser} />;
+  }
+
+  return (
+    <SafeAreaView style={styles.center}>
+      <Text style={styles.title}>Logado como {user.full_name ?? user.email}</Text>
+      <Text>{user.email}</Text>
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Sair</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
-  title: { fontSize: 20, fontWeight: '600' },
-  url: { color: '#666' },
-  error: { color: 'red' },
-  statusBox: { gap: 4, alignItems: 'flex-start' },
-  statusLine: { fontFamily: 'monospace' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
+  title: { fontSize: 18, fontWeight: '600' },
+  logoutButton: { marginTop: 16, padding: 10 },
+  logoutText: { color: '#2563eb', fontWeight: '600' },
 });

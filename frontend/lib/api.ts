@@ -1,0 +1,61 @@
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+export type AuthTokens = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+};
+
+export type UserMe = {
+  id: string;
+  email: string;
+  phone: string | null;
+  full_name: string | null;
+  role: string;
+  created_at: string;
+};
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.detail ?? `Erro ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export function login(email: string, password: string): Promise<AuthTokens> {
+  return request('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function refreshTokens(refreshToken: string): Promise<AuthTokens> {
+  return request('/api/v1/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+}
+
+export function getMe(accessToken: string): Promise<UserMe> {
+  return request('/api/v1/users/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
