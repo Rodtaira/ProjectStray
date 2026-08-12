@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 
-import { Sighting, listSightings } from './lib/api';
+import { CreateSightingModal } from './CreateSightingModal';
+import { Sighting, createSighting, listSightings } from './lib/api';
 import { authenticatedFetch } from './lib/auth-client';
 
 export function MapScreen() {
@@ -11,6 +12,7 @@ export function MapScreen() {
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [loadingSightings, setLoadingSightings] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const loadSightings = useCallback(async () => {
     try {
@@ -44,6 +46,19 @@ export function MapScreen() {
     loadSightings();
   }, [loadSightings]);
 
+  async function handleCreateSighting(description: string) {
+    const position = await Location.getCurrentPositionAsync({});
+    const newSighting = await authenticatedFetch((token) =>
+      createSighting(token, {
+        description: description || null,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      })
+    );
+    setSightings((prev) => [newSighting, ...prev]);
+    setModalVisible(false);
+  }
+
   if (locationError) {
     return (
       <View style={styles.center}>
@@ -71,11 +86,22 @@ export function MapScreen() {
           />
         ))}
       </MapView>
+
       {loadingSightings && (
         <View style={styles.loadingBadge}>
           <ActivityIndicator size="small" />
         </View>
       )}
+
+      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
+
+      <CreateSightingModal
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        onSubmit={handleCreateSighting}
+      />
     </View>
   );
 }
@@ -94,4 +120,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     elevation: 3,
   },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+  },
+  fabText: { color: '#fff', fontSize: 28, fontWeight: '400', marginTop: -2 },
 });

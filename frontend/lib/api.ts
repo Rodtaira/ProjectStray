@@ -24,6 +24,12 @@ export type Sighting = {
   created_at: string;
 };
 
+export type SightingCreate = {
+  description?: string | null;
+  latitude: number;
+  longitude: number;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -72,5 +78,13 @@ export function getMe(accessToken: string): Promise<UserMe> {
 export function listSightings(accessToken: string): Promise<Sighting[]> {
   return request('/api/v1/sightings', {
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function createSighting(accessToken: string, data: SightingCreate): Promise<Sighting> {
+  return request('/api/v1/sightings', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(data),
   });
 }
