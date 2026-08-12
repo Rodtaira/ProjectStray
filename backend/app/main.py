@@ -1,6 +1,7 @@
 import redis.asyncio as redis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 
 from app.api.v1.router import api_router
@@ -17,6 +18,14 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/api/v1/donations/callback", response_class=HTMLResponse)
+async def donation_callback():
+    """Alvo temporário do back_url do Checkout Pro. Quando integrarmos
+    isso ao app mobile via deep link, essa URL muda pra algo tipo
+    stray://donation-callback."""
+    return "<html><body><h1>Pagamento processado</h1><p>Pode fechar esta aba e voltar pro app.</p></body></html>"
 
 
 @app.get("/health")

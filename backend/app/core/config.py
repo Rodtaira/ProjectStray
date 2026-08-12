@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
 
+    mp_access_token: str
+    mp_webhook_secret: str = ""
+    public_backend_url: str
+
     environment: str = "development"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
