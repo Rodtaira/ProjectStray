@@ -1,0 +1,6 @@
+curl -X POST http://localhost:8000/api/v1/campaigns/5875a2a0-a7f6-4ac4-a0b9-c2f87aa20ed0/donations -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"amount": 40.00}'
+
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "rodrigo@example.com", "password": "senha12345"}' \
+  | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
