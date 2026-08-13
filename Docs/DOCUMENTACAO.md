@@ -279,16 +279,18 @@ Resposta arredonda `latitude`/`longitude` para 3 casas decimais (~100-110m) — 
 ### 7.1 Fluxo
 
 1. `POST /campaigns/{id}/donations` cria um registro `Donation` (`status=pending`) e, em seguida, uma **preferência de pagamento** via SDK do Mercado Pago (Checkout Pro).
-2. `external_reference` da preferência = **id da própria doação** (não o id da campanha) — é assim que o webhook casa o pagamento de volta com o registro certo, sem depender de nenhum campo específico e não documentado do objeto de pagamento do Mercado Pago.
-3. A resposta da API devolve `checkout_url` (`init_point`), pra onde o cliente deve redirecionar o usuário.
-4. Após o pagamento, o Mercado Pago chama `notification_url` (nosso webhook). O handler busca os detalhes do pagamento via API autenticada (nunca confia no corpo da notificação em si) e, se `status == "approved"`, marca a doação como `confirmed`.
-5. `GET /campaigns/{id}/donations` (ledger público) só lista doações `confirmed`.
+2. `external_reference` da preferência = **id da própria doação** (não o id da campanha) — é assim que a confirmação (por qualquer um dos dois caminhos abaixo) casa o pagamento de volta com o registro certo.
+3. A resposta da API devolve `checkout_url` (`init_point`), pra onde o cliente redireciona o usuário.
+4. Depois do pagamento, o Mercado Pago redireciona o navegador de volta pro `back_url` (mesma URL pra sucesso/falha/pendente: `GET /donations/callback`), incluindo `payment_id`, `external_reference` e `status` como query params.
+5. `GET /donations/callback` **é o caminho principal de confirmação hoje**: reverifica o pagamento chamando a API autenticada do Mercado Pago com o `payment_id` recebido (nunca confia nos query params sozinhos) e, se `status == "approved"`, marca a doação como `confirmed`.
+6. O webhook (`POST /webhooks/payments/mercadopago`) continua existindo e validando assinatura normalmente, mas é tratado como **reforço**, não como fonte primária — ver §7.4 para o motivo.
+7. `GET /campaigns/{id}/donations` (ledger público) só lista doações `confirmed`.
 
 ### 7.2 SDK síncrono dentro de rota assíncrona
 
 O SDK oficial do Mercado Pago (`mercadopago` no PyPI) é bloqueante. Chamado direto dentro de uma rota `async def`, travaria o event loop inteiro enquanto espera resposta da API externa. Solução: `starlette.concurrency.run_in_threadpool` isola a chamada numa thread, e `asyncio.wait_for(..., timeout=15)` garante que a requisição falha rápido (com erro claro) em vez de travar indefinidamente se a chamada nunca retornar.
 
-### 7.3 Ambiente de teste vs. produção — fonte principal de bugs desta integração
+### 7.3 Ambiente de teste vs. produção
 
 O Mercado Pago separa **Access Token**, **URL de webhook** e **assinatura secreta** em duas versões completamente independentes: teste e produção. Os três precisam estar consistentemente do lado de teste durante desenvolvimento:
 
@@ -296,7 +298,18 @@ O Mercado Pago separa **Access Token**, **URL de webhook** e **assinatura secret
 - Webhook: painel → aplicação → **Webhooks**, com abas separadas **Modo de teste** / **Modo de produção** — cada uma com sua própria URL e assinatura secreta.
 - Pagamento de teste exige uma **conta compradora de teste** (criada em "Contas de teste"), logada durante o checkout — pagar como comprador "real" contra uma preferência de teste gera o erro `"Uma das partes... é de teste"`.
 
-### 7.4 Validação de assinatura do webhook
+### 7.4 Por que o webhook não é a confirmação primária hoje
+
+Duas descobertas, nessa ordem, levaram ao desenho atual:
+
+1. **`notification_url` definida na criação da preferência tem prioridade sobre a URL configurada no painel** — e, segundo a documentação do próprio Mercado Pago, notificações entregues por esse caminho **não podem ser validadas com `x-signature`**, não importa qual chave secreta seja usada. Nosso código chegou a mandar `notification_url` na preferência; isso foi removido — a URL do painel (a única assinada) passou a ser a única fonte configurada.
+2. **Mesmo com o painel corretamente configurado** (confirmado batendo o botão "Simular notificação", que retornou `200 OK` de verdade), **pagamentos reais no ambiente de teste não disparavam notificação nenhuma** pro webhook — nem chegando e falhando na assinatura, simplesmente não chegava nada. Esse é um comportamento relatado como inconsistente por outros desenvolvedores integrando com o Mercado Pago em ambiente de teste, não um erro identificado no nosso código.
+
+Dado isso, o **callback do retorno do checkout** (§7.1, passo 5) virou o caminho confiável de confirmação — ele não depende de nenhuma notificação assíncrona do lado do Mercado Pago, só do redirect que já acontece naturalmente como parte do Checkout Pro. A segurança dele vem da **reverificação via API autenticada** (mesmo princípio do webhook: nunca confiar em dado que chega de fora sem confirmar na fonte), não de uma assinatura.
+
+O webhook continua implementado e funcional (a validação de assinatura funciona, como provado pela simulação) — fica como reforço para quando a entrega de notificação real se mostrar mais confiável (possivelmente distinto em produção) ou para reconciliação futura.
+
+### 7.5 Validação de assinatura do webhook
 
 Header `x-signature` no formato `ts=<timestamp>,v1=<hash>`. Manifesto assinado:
 
@@ -304,11 +317,16 @@ Header `x-signature` no formato `ts=<timestamp>,v1=<hash>`. Manifesto assinado:
 id:<data.id em minúsculo>;request-id:<x-request-id>;ts:<ts>;
 ```
 
-`HMAC-SHA256(manifest, MP_WEBHOOK_SECRET)` deve bater com `v1`, comparado com `hmac.compare_digest` (comparação em tempo constante, evita timing attack). Requisição sem assinatura válida recebe `401` e não é processada — **esse check nunca deve ser contornado**, mesmo temporariamente para debug; é a única defesa contra alguém forjar confirmação de doação falsa.
+`HMAC-SHA256(manifest, MP_WEBHOOK_SECRET)` deve bater com `v1`, comparado com `hmac.compare_digest` (comparação em tempo constante, evita timing attack). Requisição sem assinatura válida recebe `401` e não é processada — **esse check nunca deve ser contornado**, mesmo temporariamente para debug; é a única defesa contra alguém forjar confirmação de doação falsa por esse caminho específico.
 
-### 7.5 Testando localmente
+### 7.6 Testando localmente
 
 O webhook precisa de uma URL pública (o Mercado Pago não alcança `localhost`). Em desenvolvimento, isso é feito via túnel (`ngrok` ou `cloudflared`) apontando pra porta 8000. A URL muda a cada reinício do túnel no plano gratuito — nesses casos, é preciso atualizar `PUBLIC_BACKEND_URL` no `.env`, **recriar o container** (`docker compose up -d --force-recreate backend` — `restart` sozinho não recarrega `.env`), e reconfigurar a URL no painel do Mercado Pago.
+
+O caminho de callback (§7.4) pode ser testado sem nem completar um pagamento novo, batendo direto na rota com um `payment_id` de um pagamento já aprovado:
+```bash
+curl "http://localhost:8000/api/v1/donations/callback?payment_id=<id>&external_reference=<uuid-da-doacao>"
+```
 
 Cartão de teste (Brasil, força aprovação com o nome do titular `APRO`):
 ```
@@ -319,11 +337,16 @@ Titular: APRO
 CPF: 123.456.789-09
 ```
 
-### 7.6 Pendências conhecidas desta integração
+### 7.7 Lição de depuração: nível de log padrão do Python
 
-- `back_urls` do checkout apontam hoje pra uma página HTML estática de confirmação (`GET /donations/callback`) — quando o fluxo for ligado ao app mobile, isso deve virar um deep link (`stray://...`).
+Durante o debug dessa integração, um `logger.info(...)` usado pra diagnosticar o callback nunca aparecia nos logs — não porque o código não rodava, mas porque o nível de log padrão do Python é `WARNING`, e mensagens `INFO` são silenciosamente descartadas sem configuração explícita. Os logs de debug do webhook (`_verify_signature`) sempre usaram `logger.warning(...)` por esse motivo, e é o padrão a seguir em qualquer log de diagnóstico temporário neste projeto — `logger.info` só é confiável se o nível de logging for configurado explicitamente em algum lugar (o que ainda não fizemos).
+
+### 7.8 Pendências conhecidas desta integração
+
+- O `back_url` do checkout aponta hoje pra uma página HTML simples servida pelo próprio backend (`GET /donations/callback`) — quando o fluxo for ligado ao app mobile de verdade, isso deve virar um deep link (`stray://...`), com a mesma lógica de reverificação rodando no app em vez de numa página web.
 - Sem verificação de e-mail no cadastro de usuário — não é específico de pagamento, mas relevante pra quem vai doar.
 - Sem revogação de refresh token — não afeta pagamento diretamente, mas é uma pendência de segurança geral já registrada.
+- Investigar com o suporte do Mercado Pago por que notificações de pagamento real não chegam em ambiente de teste, mesmo com o painel corretamente configurado — vale confirmar se produção se comporta diferente antes de decidir se o webhook algum dia volta a ser o caminho primário.
 
 ---
 
