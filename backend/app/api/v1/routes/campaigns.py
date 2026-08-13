@@ -86,7 +86,6 @@ async def create_donation(
     if campaign is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Campanha não encontrada")
 
-    notification_url = f"{settings.public_backend_url}/api/v1/webhooks/payments/mercadopago"
     success_url = f"{settings.public_backend_url}/api/v1/donations/callback"
 
     donation, checkout_url = await donations_service.create_donation_with_checkout(
@@ -95,7 +94,6 @@ async def create_donation(
         campaign_title=campaign.title,
         amount=data.amount,
         donor_id=current_user.id,
-        notification_url=notification_url,
         success_url=success_url,
     )
 

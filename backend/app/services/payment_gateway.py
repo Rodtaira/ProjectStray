@@ -10,7 +10,6 @@ def create_preference(
     title: str,
     amount: float,
     external_reference: str,
-    notification_url: str,
     success_url: str,
 ) -> dict:
     """Cria uma preferência de pagamento (Checkout Pro) e retorna a resposta
@@ -19,6 +18,13 @@ def create_preference(
     external_reference é o id da NOSSA doação, não da campanha — é assim
     que o webhook consegue casar o pagamento de volta com o registro certo
     sem depender de nenhum campo específico do objeto de pagamento do MP.
+
+    NÃO mandamos notification_url aqui de propósito: segundo a documentação
+    do Mercado Pago, uma notification_url definida na criação do pagamento
+    tem prioridade sobre a configurada no painel ("Suas integrações" →
+    Webhooks) — só que a versão do painel é a única assinada com
+    x-signature. Se mandássemos aqui, a notificação nunca teria assinatura
+    validável, não importa a chave usada.
     """
     preference_data = {
         "items": [
@@ -30,7 +36,6 @@ def create_preference(
             }
         ],
         "external_reference": external_reference,
-        "notification_url": notification_url,
         "back_urls": {
             "success": success_url,
             "failure": success_url,

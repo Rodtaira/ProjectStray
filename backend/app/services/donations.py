@@ -16,7 +16,6 @@ async def create_donation_with_checkout(
     campaign_title: str,
     amount,
     donor_id: uuid.UUID | None,
-    notification_url: str,
     success_url: str,
 ) -> tuple[Donation, str]:
     # Cria a doação primeiro (flush, não commit) só pra existir um id —
@@ -38,7 +37,6 @@ async def create_donation_with_checkout(
                 title=f"Doação - {campaign_title}",
                 amount=float(amount),
                 external_reference=str(donation.id),
-                notification_url=notification_url,
                 success_url=success_url,
             ),
             timeout=15,

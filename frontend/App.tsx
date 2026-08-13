@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimalsScreen } from './AnimalsScreen';
+import { CampaignsScreen } from './CampaignsScreen';
 import { LoginScreen } from './LoginScreen';
 import { MapScreen } from './MapScreen';
 import { UserMe, getMe } from './lib/api';
@@ -69,6 +70,7 @@ export default function App() {
           <Tab.Navigator screenOptions={{ headerShown: false }}>
             <Tab.Screen name="Mapa">{() => <MapScreen currentUserId={user.id} />}</Tab.Screen>
             <Tab.Screen name="Animais">{() => <AnimalsScreen currentUserId={user.id} />}</Tab.Screen>
+            <Tab.Screen name="Campanhas" component={CampaignsScreen} />
           </Tab.Navigator>
         </SafeAreaView>
       </NavigationContainer>

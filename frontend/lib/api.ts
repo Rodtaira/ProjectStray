@@ -69,6 +69,48 @@ export type AnimalUpdate = {
   status?: AnimalStatus;
 };
 
+export type CampaignStatus = 'active' | 'funded' | 'completed' | 'cancelled';
+
+export type Campaign = {
+  id: string;
+  created_by: string;
+  animal_id: string | null;
+  title: string;
+  description: string | null;
+  goal_amount: string; // Decimal vem como string do backend, preserva precisão
+  status: CampaignStatus;
+  created_at: string;
+};
+
+export type CampaignCreate = {
+  title: string;
+  description?: string | null;
+  goal_amount: number;
+  animal_id?: string | null;
+};
+
+export type CampaignUpdate = {
+  title?: string;
+  description?: string;
+  status?: CampaignStatus;
+};
+
+export type DonationStatus = 'pending' | 'confirmed' | 'refunded';
+
+export type Donation = {
+  id: string;
+  campaign_id: string;
+  donor_id: string | null;
+  amount: string;
+  status: DonationStatus;
+  created_at: string;
+};
+
+export type DonationCheckout = {
+  donation: Donation;
+  checkout_url: string;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -174,5 +216,39 @@ export function deleteAnimal(accessToken: string, id: string): Promise<void> {
   return request(`/api/v1/animals/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+// Campanhas e doações são públicas na leitura — não exigem token.
+
+export function listCampaigns(): Promise<Campaign[]> {
+  return request('/api/v1/campaigns');
+}
+
+export function getCampaign(id: string): Promise<Campaign> {
+  return request(`/api/v1/campaigns/${id}`);
+}
+
+export function createCampaign(accessToken: string, data: CampaignCreate): Promise<Campaign> {
+  return request('/api/v1/campaigns', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(data),
+  });
+}
+
+export function listCampaignDonations(campaignId: string): Promise<Donation[]> {
+  return request(`/api/v1/campaigns/${campaignId}/donations`);
+}
+
+export function createDonation(
+  accessToken: string,
+  campaignId: string,
+  amount: number
+): Promise<DonationCheckout> {
+  return request(`/api/v1/campaigns/${campaignId}/donations`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ amount }),
   });
 }
