@@ -67,28 +67,11 @@ async def mercadopago_webhook(
 ):
     data_id = request.query_params.get("data.id") or request.query_params.get("id")
 
-    if not data_id:
-        # Sem id nenhum não tem o que buscar.
-        return {"ok": True}
-
     if not _verify_signature(x_signature, x_request_id, data_id):
-        # Não descartamos a notificação por causa disso — a validação real
-        # acontece abaixo, buscando o pagamento autenticado na API do MP e
-        # confiando SÓ nessa resposta (nunca no corpo/headers da notificação
-        # em si). A assinatura falhando aqui vira só um sinal de observabilidade,
-        # não um bloqueio, por causa de um bug conhecido do lado do Mercado
-        # Pago nesse mecanismo específico com notificações reais de pagamento.
-        logger.warning(
-            "Assinatura do webhook não validou para payment_id=%s — seguindo mesmo "
-            "assim; a confirmação real depende da resposta autenticada da API, não "
-            "desse header.",
-            data_id,
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Assinatura inválida")
 
     body = await request.json()
     if body.get("type") != "payment":
-        # Outros tipos de evento existem (ex: merchant_order) — ignoramos
-        # sem erro, só não processamos.
         return {"ok": True}
 
     payment_id = body.get("data", {}).get("id") or data_id
