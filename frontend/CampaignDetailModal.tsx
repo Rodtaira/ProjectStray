@@ -20,14 +20,21 @@ type Props = {
 
 const STATUS_LABELS: Record<string, string> = {
   active: 'Ativa',
-  funded: 'Meta atingida',
+  funded: '🎉 Meta atingida',
   completed: 'Concluída',
   cancelled: 'Cancelada',
 };
 
 const PRESET_AMOUNTS = [10, 25, 50, 100];
 
-export function CampaignDetailModal({ campaign, onClose }: Props) {
+function statusBadgeStyle(status: string) {
+  if (status === 'funded') return styles.badgeFunded;
+  if (status === 'active') return styles.badgeActive;
+  return styles.badgeOther;
+}
+
+export function CampaignDetailModal({ campaign: initialCampaign, onClose }: Props) {
+  const [campaign, setCampaign] = useState(initialCampaign);
   const [donations, setDonations] = useState<Donation[]>([]);
   const [loadingDonations, setLoadingDonations] = useState(true);
   const [amount, setAmount] = useState('');
@@ -53,6 +60,7 @@ export function CampaignDetailModal({ campaign, onClose }: Props) {
   const goal = parseFloat(campaign.goal_amount);
   const raised = donations.reduce((sum, d) => sum + parseFloat(d.amount), 0);
   const progress = goal > 0 ? Math.min(raised / goal, 1) : 0;
+  const justReachedGoal = campaign.status === 'active' && raised >= goal && goal > 0;
 
   async function handleDonate() {
     setError(null);
@@ -69,8 +77,9 @@ export function CampaignDetailModal({ campaign, onClose }: Props) {
       );
       await WebBrowser.openBrowserAsync(checkout_url);
       setAmount('');
-      // O webhook pode levar alguns segundos pra confirmar — isso pode não
-      // pegar a doação nova ainda. O botão "Atualizar" no extrato resolve.
+      // O callback confirma no retorno do checkout, mas pode levar um
+      // instante — isso pode não pegar a doação nova ainda. O botão
+      // "Atualizar" no extrato resolve.
       await loadDonations();
     } catch {
       setError('Não foi possível iniciar o pagamento. Tente de novo.');
@@ -90,7 +99,11 @@ export function CampaignDetailModal({ campaign, onClose }: Props) {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.statusText}>{STATUS_LABELS[campaign.status] ?? campaign.status}</Text>
+          <View style={[styles.statusBadge, statusBadgeStyle(campaign.status)]}>
+            <Text style={styles.statusBadgeText}>
+              {STATUS_LABELS[campaign.status] ?? campaign.status}
+            </Text>
+          </View>
 
           {campaign.description && <Text style={styles.description}>{campaign.description}</Text>}
 
@@ -100,6 +113,13 @@ export function CampaignDetailModal({ campaign, onClose }: Props) {
           <Text style={styles.progressText}>
             R$ {raised.toFixed(2)} arrecadados de R$ {goal.toFixed(2)}
           </Text>
+
+          {justReachedGoal && (
+            <Text style={styles.fundedHint}>
+              A meta já foi atingida — a campanha deve atualizar pra "Meta atingida" em instantes.
+              Toca em "Atualizar" no extrato se ainda não mudou.
+            </Text>
+          )}
 
           {campaign.status === 'active' && (
             <View style={styles.donateBox}>
@@ -172,11 +192,16 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 18, fontWeight: '700', flexShrink: 1 },
   closeText: { color: '#2563eb', fontWeight: '600' },
-  statusText: { color: '#666', fontSize: 13 },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  badgeActive: { backgroundColor: '#dbeafe' },
+  badgeFunded: { backgroundColor: '#dcfce7' },
+  badgeOther: { backgroundColor: '#e5e7eb' },
+  statusBadgeText: { fontSize: 12, fontWeight: '600' },
   description: { fontSize: 15 },
   progressBarBg: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 6, overflow: 'hidden', marginTop: 4 },
   progressBarFill: { height: '100%', backgroundColor: '#22c55e' },
   progressText: { color: '#666', fontSize: 13 },
+  fundedHint: { color: '#166534', fontSize: 12, fontStyle: 'italic' },
   label: { fontSize: 13, color: '#666', fontWeight: '600' },
   donateBox: { gap: 8, marginTop: 8 },
   presetRow: { flexDirection: 'row', gap: 8 },

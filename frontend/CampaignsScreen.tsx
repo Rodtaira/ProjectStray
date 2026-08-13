@@ -8,10 +8,16 @@ import { authenticatedFetch } from './lib/auth-client';
 
 const STATUS_LABELS: Record<string, string> = {
   active: 'Ativa',
-  funded: 'Meta atingida',
+  funded: '🎉 Meta atingida',
   completed: 'Concluída',
   cancelled: 'Cancelada',
 };
+
+function badgeStyleFor(status: string) {
+  if (status === 'funded') return styles.badgeFunded;
+  if (status === 'active') return styles.badgeActive;
+  return styles.badgeOther;
+}
 
 export function CampaignsScreen() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -40,6 +46,11 @@ export function CampaignsScreen() {
     setModalVisible(false);
   }
 
+  function handleCloseDetail() {
+    setSelectedCampaign(null);
+    loadCampaigns(); // recarrega a lista — status pode ter mudado pra "funded"
+  }
+
   return (
     <View style={styles.container}>
       {loading ? (
@@ -54,9 +65,7 @@ export function CampaignsScreen() {
             <TouchableOpacity style={styles.card} onPress={() => setSelectedCampaign(item)}>
               <Text style={styles.cardTitle}>{item.title}</Text>
               <Text style={styles.cardGoal}>Meta: R$ {parseFloat(item.goal_amount).toFixed(2)}</Text>
-              <View
-                style={[styles.badge, item.status === 'active' ? styles.badgeActive : styles.badgeOther]}
-              >
+              <View style={[styles.badge, badgeStyleFor(item.status)]}>
                 <Text style={styles.badgeText}>{STATUS_LABELS[item.status] ?? item.status}</Text>
               </View>
             </TouchableOpacity>
@@ -75,7 +84,7 @@ export function CampaignsScreen() {
       />
 
       {selectedCampaign && (
-        <CampaignDetailModal campaign={selectedCampaign} onClose={() => setSelectedCampaign(null)} />
+        <CampaignDetailModal campaign={selectedCampaign} onClose={handleCloseDetail} />
       )}
     </View>
   );
@@ -91,6 +100,7 @@ const styles = StyleSheet.create({
   cardGoal: { color: '#666' },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   badgeActive: { backgroundColor: '#dbeafe' },
+  badgeFunded: { backgroundColor: '#dcfce7' },
   badgeOther: { backgroundColor: '#e5e7eb' },
   badgeText: { fontSize: 11, fontWeight: '600' },
   fab: {

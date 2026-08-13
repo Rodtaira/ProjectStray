@@ -60,4 +60,6 @@ class Animal(Base):
         server_default=AnimalStatus.stray.value,
     )
 
-    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[object] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
