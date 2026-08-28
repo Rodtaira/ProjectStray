@@ -8,8 +8,11 @@ RUN groupadd -g "${HOST_GID}" appuser \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Instala requirements-dev.txt (que já inclui requirements.txt via -r) —
+# isso é apropriado enquanto essa imagem só roda em ambiente local/dev.
+# Numa build de produção de verdade, trocar por só `requirements.txt`.
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
 
 COPY . .
 RUN chown -R appuser:appuser /app
