@@ -59,7 +59,6 @@ class Animal(Base):
         default=AnimalStatus.stray,
         server_default=AnimalStatus.stray.value,
     )
+    photo_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    created_at: Mapped[object] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
-    )
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())

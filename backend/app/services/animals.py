@@ -74,3 +74,28 @@ def to_read_schema(animal: Animal) -> AnimalRead:
         status=animal.status.value,
         created_at=animal.created_at,
     )
+
+import uuid
+
+from starlette.concurrency import run_in_threadpool
+
+from app.services import storage
+
+
+async def set_animal_photo(db: AsyncSession, animal: Animal, processed_bytes: bytes) -> Animal:
+    """Envia a foto já processada (sem EXIF, já em JPEG) pro storage, grava
+    a chave nova no animal, e remove a chave antiga se estava substituindo
+    uma foto existente."""
+    new_key = f"animals/{animal.id}/{uuid.uuid4().hex}.jpg"
+    old_key = animal.photo_key
+
+    await run_in_threadpool(storage.upload_bytes, new_key, processed_bytes, "image/jpeg")
+
+    animal.photo_key = new_key
+    await db.commit()
+    await db.refresh(animal)
+
+    if old_key:
+        await run_in_threadpool(storage.delete_object, old_key)
+
+    return animal

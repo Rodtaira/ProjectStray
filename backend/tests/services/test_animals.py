@@ -162,3 +162,60 @@ def test_to_read_schema_maps_enum_values_to_their_plain_strings():
     assert schema.sex == "female"
     assert schema.status == "in_shelter"
     assert schema.name == "Mimi"
+
+
+from app.services import storage
+
+
+class TestSetAnimalPhoto:
+    async def test_uploads_the_processed_bytes_and_stores_the_new_key(
+        self, db_session, make_user, make_animal, monkeypatch
+    ):
+        uploaded = {}
+
+        def fake_upload(key, data, content_type):
+            uploaded["key"] = key
+            uploaded["data"] = data
+            uploaded["content_type"] = content_type
+
+        monkeypatch.setattr(storage, "upload_bytes", fake_upload)
+        monkeypatch.setattr(storage, "delete_object", lambda key: None)
+
+        user = await make_user()
+        animal = await make_animal(registered_by=user.id)
+
+        updated = await animals_service.set_animal_photo(db_session, animal, b"fake-jpeg-bytes")
+
+        assert updated.photo_key is not None
+        assert updated.photo_key.startswith(f"animals/{animal.id}/")
+        assert uploaded["key"] == updated.photo_key
+        assert uploaded["data"] == b"fake-jpeg-bytes"
+        assert uploaded["content_type"] == "image/jpeg"
+
+    async def test_deletes_the_old_photo_when_replacing_it(
+        self, db_session, make_user, make_animal, monkeypatch
+    ):
+        monkeypatch.setattr(storage, "upload_bytes", lambda key, data, content_type: None)
+        deleted_keys = []
+        monkeypatch.setattr(storage, "delete_object", lambda key: deleted_keys.append(key))
+
+        user = await make_user()
+        animal = await make_animal(registered_by=user.id, photo_key="animals/old/old.jpg")
+
+        await animals_service.set_animal_photo(db_session, animal, b"new-bytes")
+
+        assert deleted_keys == ["animals/old/old.jpg"]
+
+    async def test_does_not_try_to_delete_when_there_was_no_previous_photo(
+        self, db_session, make_user, make_animal, monkeypatch
+    ):
+        monkeypatch.setattr(storage, "upload_bytes", lambda key, data, content_type: None)
+        deleted_keys = []
+        monkeypatch.setattr(storage, "delete_object", lambda key: deleted_keys.append(key))
+
+        user = await make_user()
+        animal = await make_animal(registered_by=user.id)
+
+        await animals_service.set_animal_photo(db_session, animal, b"new-bytes")
+
+        assert deleted_keys == []

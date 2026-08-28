@@ -4,3 +4,7 @@ TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "rodrigo@example.com", "password": "senha12345"}' \
   | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+
+  cloudflared tunnel --url http://localhost:8000
+
+   docker compose up -d --force-recreate backend
