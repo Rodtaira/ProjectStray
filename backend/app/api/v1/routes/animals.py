@@ -1,15 +1,20 @@
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User, UserRole
 from app.schemas.animal import AnimalCreate, AnimalRead, AnimalUpdate
 from app.services import animals as animals_service
+from app.services.image_utils import process_photo
 
 router = APIRouter(prefix="/animals", tags=["animals"])
+
+MAX_PHOTO_SIZE = 8 * 1024 * 1024
+ALLOWED_PHOTO_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 @router.post("", response_model=AnimalRead, status_code=status.HTTP_201_CREATED)
@@ -85,3 +90,37 @@ async def delete_animal(
         )
 
     await animals_service.delete_animal(db, animal)
+
+
+@router.post("/{animal_id}/photo", response_model=AnimalRead)
+async def upload_animal_photo(
+    animal_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AnimalRead:
+    animal = await animals_service.get_animal_by_id(db, animal_id)
+    if animal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Animal não encontrado")
+
+    is_owner = animal.registered_by == current_user.id
+    is_moderator = current_user.role in (UserRole.moderator, UserRole.admin)
+    if not is_owner and not is_moderator:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Só quem registrou o animal ou um moderador pode enviar foto",
+        )
+
+    if file.content_type not in ALLOWED_PHOTO_CONTENT_TYPES:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Formato de imagem não suportado"
+        )
+
+    raw = await file.read()
+    if len(raw) > MAX_PHOTO_SIZE:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Imagem maior que 8MB")
+
+    processed = await run_in_threadpool(process_photo, raw)
+
+    updated = await animals_service.set_animal_photo(db, animal, processed)
+    return animals_service.to_read_schema(updated)

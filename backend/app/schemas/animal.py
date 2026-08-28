@@ -29,4 +29,5 @@ class AnimalRead(BaseModel):
     description: str | None
     is_sterilized: bool
     status: str
+    photo_url: str | None
     created_at: datetime

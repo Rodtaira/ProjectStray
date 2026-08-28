@@ -148,3 +148,112 @@ class TestDeleteAnimal:
         response = await client.delete(f"/api/v1/animals/{animal.id}")
 
         assert response.status_code == 204
+
+
+import io
+
+from PIL import Image
+
+from app.services import storage
+
+
+def _make_jpeg_bytes(width: int = 10, height: int = 10) -> bytes:
+    image = Image.new("RGB", (width, height), color="green")
+    output = io.BytesIO()
+    image.save(output, format="JPEG")
+    return output.getvalue()
+
+
+class TestUploadAnimalPhoto:
+    async def test_requires_authentication(self, client, make_user, make_animal):
+        owner = await make_user()
+        animal = await make_animal(registered_by=owner.id)
+
+        response = await client.post(
+            f"/api/v1/animals/{animal.id}/photo",
+            files={"file": ("photo.jpg", _make_jpeg_bytes(), "image/jpeg")},
+        )
+
+        assert response.status_code == 401
+
+    async def test_the_owner_can_upload_a_photo(self, client, make_user, make_animal, monkeypatch):
+        monkeypatch.setattr(storage, "upload_bytes", lambda key, data, content_type: None)
+        owner = await make_user()
+        animal = await make_animal(registered_by=owner.id)
+        as_user(owner)
+
+        response = await client.post(
+            f"/api/v1/animals/{animal.id}/photo",
+            files={"file": ("photo.jpg", _make_jpeg_bytes(), "image/jpeg")},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["photo_url"] == f"/api/v1/animals/{animal.id}/photo"
+
+    async def test_a_moderator_can_upload_a_photo_for_someone_elses_animal(
+        self, client, make_user, make_animal, monkeypatch
+    ):
+        monkeypatch.setattr(storage, "upload_bytes", lambda key, data, content_type: None)
+        owner = await make_user()
+        moderator = await make_user(role=UserRole.moderator)
+        animal = await make_animal(registered_by=owner.id)
+        as_user(moderator)
+
+        response = await client.post(
+            f"/api/v1/animals/{animal.id}/photo",
+            files={"file": ("photo.jpg", _make_jpeg_bytes(), "image/jpeg")},
+        )
+
+        assert response.status_code == 200
+
+    async def test_a_stranger_cannot_upload_a_photo_for_someone_elses_animal(
+        self, client, make_user, make_animal
+    ):
+        owner = await make_user()
+        stranger = await make_user()
+        animal = await make_animal(registered_by=owner.id)
+        as_user(stranger)
+
+        response = await client.post(
+            f"/api/v1/animals/{animal.id}/photo",
+            files={"file": ("photo.jpg", _make_jpeg_bytes(), "image/jpeg")},
+        )
+
+        assert response.status_code == 403
+
+    async def test_returns_404_for_a_missing_animal(self, client, make_user):
+        user = await make_user()
+        as_user(user)
+
+        response = await client.post(
+            f"/api/v1/animals/{uuid.uuid4()}/photo",
+            files={"file": ("photo.jpg", _make_jpeg_bytes(), "image/jpeg")},
+        )
+
+        assert response.status_code == 404
+
+    async def test_rejects_a_non_image_content_type(self, client, make_user, make_animal):
+        owner = await make_user()
+        animal = await make_animal(registered_by=owner.id)
+        as_user(owner)
+
+        response = await client.post(
+            f"/api/v1/animals/{animal.id}/photo",
+            files={"file": ("notes.txt", b"hello", "text/plain")},
+        )
+
+        assert response.status_code == 415
+
+    async def test_rejects_a_file_larger_than_8mb(self, client, make_user, make_animal):
+        owner = await make_user()
+        animal = await make_animal(registered_by=owner.id)
+        as_user(owner)
+
+        oversized = b"x" * (8 * 1024 * 1024 + 1)
+
+        response = await client.post(
+            f"/api/v1/animals/{animal.id}/photo",
+            files={"file": ("big.jpg", oversized, "image/jpeg")},
+        )
+
+        assert response.status_code == 413

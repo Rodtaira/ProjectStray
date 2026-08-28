@@ -72,6 +72,7 @@ def to_read_schema(animal: Animal) -> AnimalRead:
         description=animal.description,
         is_sterilized=animal.is_sterilized,
         status=animal.status.value,
+        photo_url=f"/api/v1/animals/{animal.id}/photo" if animal.photo_key else None,
         created_at=animal.created_at,
     )
 
